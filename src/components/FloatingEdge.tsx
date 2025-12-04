@@ -1,4 +1,4 @@
-import { useInternalNode, getBezierPath, EdgeProps, Position } from '@xyflow/react'
+import { useInternalNode, getBezierPath, Position, type EdgeProps } from '@xyflow/react'
 
 function getNodeIntersection(intersectionNode: any, targetNode: any) {
   const {

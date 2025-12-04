@@ -1,6 +1,6 @@
-import { Handle, Position, NodeProps } from '@xyflow/react'
+import { Handle, Position, type NodeProps } from '@xyflow/react'
 
-interface PersonNodeData {
+export interface PersonNodeData {
   name: string
   isUser: boolean
   onRemove?: (id: string) => void
@@ -8,8 +8,8 @@ interface PersonNodeData {
   isConnectionSource?: boolean
 }
 
-export function PersonNode({ id, data }: NodeProps<PersonNodeData>) {
-  const { name, isUser, onRemove, onClick, isConnectionSource } = data
+export function PersonNode({ id, data }: NodeProps) {
+  const { name, isUser, onRemove, onClick, isConnectionSource } = data as unknown as PersonNodeData
 
   return (
     <div className="relative group">

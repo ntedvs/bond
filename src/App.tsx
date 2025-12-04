@@ -1,15 +1,15 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   ReactFlow,
-  Node,
-  Edge,
   Controls,
   Background,
-  NodeChange,
-  EdgeChange,
   applyNodeChanges,
   applyEdgeChanges,
   BackgroundVariant,
+  type Node,
+  type Edge,
+  type NodeChange,
+  type EdgeChange,
 } from '@xyflow/react'
 import { PersonNode } from './components/PersonNode'
 import { FloatingEdge } from './components/FloatingEdge'
@@ -203,23 +203,6 @@ function App() {
     }))
   }
 
-  const removeConnection = (id: string) => {
-    setData(prev => ({
-      ...prev,
-      connections: prev.connections.filter(c => c.id !== id),
-    }))
-  }
-
-  const getPersonName = (id: string) => {
-    return data.people.find(p => p.id === id)?.name || 'Unknown'
-  }
-
-  const resetData = () => {
-    if (confirm('Are you sure you want to reset all data?')) {
-      setData({ people: [], connections: [] })
-      localStorage.removeItem(STORAGE_KEY)
-    }
-  }
 
   // Handle node changes (including position updates from dragging)
   const onNodesChange = useCallback(
@@ -228,14 +211,15 @@ function App() {
 
       // Save position changes back to our data for persistence
       const positionChanges = changes.filter(
-        (c) => c.type === 'position' && 'position' in c && c.position
+        (c): c is Extract<NodeChange, { type: 'position' }> =>
+          c.type === 'position' && 'position' in c && c.position !== undefined
       )
       if (positionChanges.length > 0) {
         setData((prev) => ({
           ...prev,
           people: prev.people.map((person) => {
             const change = positionChanges.find((c) => c.id === person.id)
-            if (change && change.type === 'position' && 'position' in change && change.position) {
+            if (change && change.position) {
               return { ...person, position: change.position }
             }
             return person
