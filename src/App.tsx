@@ -69,8 +69,43 @@ function App() {
 
   const [nodes, setNodes] = useState<Node[]>([])
   const [edges, setEdges] = useState<Edge[]>([])
+  const [connectionSource, setConnectionSource] = useState<string | null>(null)
 
   const user = data.people.find(p => p.isUser)
+
+  // Handle node click for Shift+Click connections
+  const handleNodeClick = useCallback((event: React.MouseEvent, nodeId: string) => {
+    if (event.shiftKey) {
+      if (!connectionSource) {
+        // First shift+click - select source
+        setConnectionSource(nodeId)
+      } else if (connectionSource === nodeId) {
+        // Clicked same node - deselect
+        setConnectionSource(null)
+      } else {
+        // Second shift+click - create connection
+        const exists = data.connections.some(
+          c =>
+            (c.from === connectionSource && c.to === nodeId) ||
+            (c.from === nodeId && c.to === connectionSource)
+        )
+
+        if (!exists) {
+          const newConnection: Connection = {
+            id: crypto.randomUUID(),
+            from: connectionSource,
+            to: nodeId,
+          }
+
+          setData(prev => ({
+            ...prev,
+            connections: [...prev.connections, newConnection],
+          }))
+        }
+        setConnectionSource(null)
+      }
+    }
+  }, [connectionSource, data.connections])
 
   // Sync data changes to nodes and edges
   useEffect(() => {
@@ -83,6 +118,8 @@ function App() {
         name: person.name,
         isUser: person.isUser,
         onRemove: removePerson,
+        onClick: handleNodeClick,
+        isConnectionSource: connectionSource === person.id,
       },
     }))
     setNodes(newNodes)
@@ -96,7 +133,7 @@ function App() {
       style: { strokeWidth: 2, stroke: '#64748b' },
     }))
     setEdges(newEdges)
-  }, [data])
+  }, [data, connectionSource, handleNodeClick])
 
   const addUser = () => {
     if (!userName.trim()) return
@@ -156,7 +193,7 @@ function App() {
       connections: [...prev.connections, newConnection],
     }))
     setFromPersonId('')
-    setToPersonId('')
+    // Keep toPersonId selected for easier consecutive connections
   }
 
   const removePerson = (id: string) => {
@@ -217,15 +254,40 @@ function App() {
     []
   )
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4">
-      <div className="max-w-7xl mx-auto">
-        <h1 className="text-4xl font-bold text-center mb-8 text-gray-800">
-          Bond - Network Builder
-        </h1>
+  // Handle new connections created by dragging
+  const onConnect = useCallback(
+    (connection: any) => {
+      if (!connection.source || !connection.target) return
+      if (connection.source === connection.target) return
 
-        {!user ? (
-          <div className="max-w-md mx-auto bg-white rounded-lg shadow-lg p-8">
+      // Check if connection already exists
+      const exists = data.connections.some(
+        c =>
+          (c.from === connection.source && c.to === connection.target) ||
+          (c.from === connection.target && c.to === connection.source)
+      )
+
+      if (exists) return
+
+      const newConnection: Connection = {
+        id: crypto.randomUUID(),
+        from: connection.source,
+        to: connection.target,
+      }
+
+      setData(prev => ({
+        ...prev,
+        connections: [...prev.connections, newConnection],
+      }))
+    },
+    [data.connections]
+  )
+
+  return (
+    <div className="h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-4 flex flex-col gap-4">
+      {!user ? (
+        <div className="flex-1 flex items-center justify-center">
+          <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8">
             <h2 className="text-2xl font-semibold mb-4 text-gray-700">
               Welcome! What's your name?
             </h2>
@@ -247,169 +309,90 @@ function App() {
               </button>
             </div>
           </div>
-        ) : (
-          <div className="space-y-6">
-            {/* Header */}
-            <div className="bg-white rounded-lg shadow-md p-6 flex justify-between items-center">
-              <h2 className="text-2xl font-semibold text-gray-700">
-                Hello, <span className="text-blue-600">{user.name}</span>!
-              </h2>
-              <button
-                onClick={resetData}
-                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
-              >
-                Reset All Data
-              </button>
+        </div>
+      ) : (
+        <>
+          {/* Network Graph */}
+          <div className="flex-1 bg-white rounded-lg shadow-md overflow-hidden">
+            <ReactFlow
+              nodes={nodes}
+              edges={edges}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              onConnect={onConnect}
+              nodeTypes={nodeTypes}
+              edgeTypes={edgeTypes}
+              fitView
+              fitViewOptions={{ padding: 0.2 }}
+            >
+              <Background variant={BackgroundVariant.Dots} gap={12} size={1} />
+              <Controls />
+            </ReactFlow>
+          </div>
+
+          {/* Controls */}
+          <div className="grid md:grid-cols-2 gap-4">
+            {/* Add Person */}
+            <div className="bg-white rounded-lg shadow-md p-4">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newPersonName}
+                  onChange={e => setNewPersonName(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && addPerson()}
+                  placeholder="Add person..."
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <button
+                  onClick={addPerson}
+                  className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors font-medium"
+                >
+                  Add
+                </button>
+              </div>
             </div>
 
-            {/* Network Graph */}
-            <div className="bg-white rounded-lg shadow-md overflow-hidden" style={{ height: '500px' }}>
-              <ReactFlow
-                nodes={nodes}
-                edges={edges}
-                onNodesChange={onNodesChange}
-                onEdgesChange={onEdgesChange}
-                nodeTypes={nodeTypes}
-                edgeTypes={edgeTypes}
-                fitView
-                fitViewOptions={{ padding: 0.2 }}
-              >
-                <Background variant={BackgroundVariant.Dots} gap={12} size={1} />
-                <Controls />
-              </ReactFlow>
-            </div>
-
-            <div className="grid md:grid-cols-2 gap-6">
-              {/* Add Person */}
-              <div className="bg-white rounded-lg shadow-md p-6">
-                <h3 className="text-xl font-semibold mb-4 text-gray-700">
-                  Add Person
-                </h3>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={newPersonName}
-                    onChange={e => setNewPersonName(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && addPerson()}
-                    placeholder="Person's name"
+            {/* Create Connection */}
+            {data.people.length > 1 && (
+              <div className="bg-white rounded-lg shadow-md p-4">
+                <div className="flex gap-2 items-center">
+                  <select
+                    value={fromPersonId}
+                    onChange={e => setFromPersonId(e.target.value)}
                     className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
+                  >
+                    <option value="">Select person</option>
+                    {data.people.map(p => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} {p.isUser ? '(You)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="text-gray-400">↔</span>
+                  <select
+                    value={toPersonId}
+                    onChange={e => setToPersonId(e.target.value)}
+                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Select person</option>
+                    {data.people.map(p => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} {p.isUser ? '(You)' : ''}
+                      </option>
+                    ))}
+                  </select>
                   <button
-                    onClick={addPerson}
+                    onClick={addConnection}
                     className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors font-medium"
                   >
-                    Add
+                    Connect
                   </button>
                 </div>
               </div>
-
-              {/* Create Connection */}
-              {data.people.length > 1 && (
-                <div className="bg-white rounded-lg shadow-md p-6">
-                  <h3 className="text-xl font-semibold mb-4 text-gray-700">
-                    Create Connection
-                  </h3>
-                  <div className="flex gap-2 items-center">
-                    <select
-                      value={fromPersonId}
-                      onChange={e => setFromPersonId(e.target.value)}
-                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Select person</option>
-                      {data.people.map(p => (
-                        <option key={p.id} value={p.id}>
-                          {p.name} {p.isUser ? '(You)' : ''}
-                        </option>
-                      ))}
-                    </select>
-                    <span className="text-gray-400">↔</span>
-                    <select
-                      value={toPersonId}
-                      onChange={e => setToPersonId(e.target.value)}
-                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Select person</option>
-                      {data.people.map(p => (
-                        <option key={p.id} value={p.id}>
-                          {p.name} {p.isUser ? '(You)' : ''}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      onClick={addConnection}
-                      className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors font-medium"
-                    >
-                      Connect
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Lists */}
-            <div className="grid md:grid-cols-2 gap-6">
-              {/* People List */}
-              <div className="bg-white rounded-lg shadow-md p-6">
-                <h3 className="text-xl font-semibold mb-4 text-gray-700">
-                  People ({data.people.length})
-                </h3>
-                <div className="space-y-2">
-                  {data.people.map(person => (
-                    <div
-                      key={person.id}
-                      className="flex justify-between items-center p-3 bg-gray-50 rounded-lg"
-                    >
-                      <span className="font-medium text-gray-700">
-                        {person.name}
-                        {person.isUser && (
-                          <span className="ml-2 px-2 py-1 bg-blue-500 text-white text-xs rounded-full">
-                            You
-                          </span>
-                        )}
-                      </span>
-                      {!person.isUser && (
-                        <button
-                          onClick={() => removePerson(person.id)}
-                          className="px-3 py-1 bg-red-500 text-white text-sm rounded hover:bg-red-600 transition-colors"
-                        >
-                          Remove
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Connections List */}
-              {data.connections.length > 0 && (
-                <div className="bg-white rounded-lg shadow-md p-6">
-                  <h3 className="text-xl font-semibold mb-4 text-gray-700">
-                    Connections ({data.connections.length})
-                  </h3>
-                  <div className="space-y-2">
-                    {data.connections.map(conn => (
-                      <div
-                        key={conn.id}
-                        className="flex justify-between items-center p-3 bg-gray-50 rounded-lg"
-                      >
-                        <span className="font-medium text-gray-700">
-                          {getPersonName(conn.from)} ↔ {getPersonName(conn.to)}
-                        </span>
-                        <button
-                          onClick={() => removeConnection(conn.id)}
-                          className="px-3 py-1 bg-red-500 text-white text-sm rounded hover:bg-red-600 transition-colors"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+            )}
           </div>
-        )}
-      </div>
+        </>
+      )}
     </div>
   )
 }
