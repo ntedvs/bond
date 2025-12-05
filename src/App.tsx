@@ -70,8 +70,20 @@ function App() {
   const [nodes, setNodes] = useState<Node[]>([])
   const [edges, setEdges] = useState<Edge[]>([])
   const [connectionSource, setConnectionSource] = useState<string | null>(null)
+  const [viewingConnectionsFor, setViewingConnectionsFor] = useState<string | null>(null)
 
   const user = data.people.find(p => p.isUser)
+
+  // Handle Escape key to close modal
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && viewingConnectionsFor) {
+        setViewingConnectionsFor(null)
+      }
+    }
+    window.addEventListener('keydown', handleEscape)
+    return () => window.removeEventListener('keydown', handleEscape)
+  }, [viewingConnectionsFor])
 
   // Handle node click for Shift+Click connections
   const handleNodeClick = useCallback((event: React.MouseEvent, nodeId: string) => {
@@ -107,6 +119,12 @@ function App() {
     }
   }, [connectionSource, data.connections])
 
+  // Handle right-click on node to view connections
+  const handleNodeContextMenu = useCallback((event: React.MouseEvent, nodeId: string) => {
+    event.preventDefault() // Prevent browser context menu
+    setViewingConnectionsFor(nodeId)
+  }, [])
+
   // Sync data changes to nodes and edges
   useEffect(() => {
     // Convert people to nodes
@@ -119,6 +137,7 @@ function App() {
         isUser: person.isUser,
         onRemove: removePerson,
         onClick: handleNodeClick,
+        onContextMenu: handleNodeContextMenu,
         isConnectionSource: connectionSource === person.id,
       },
     }))
@@ -133,7 +152,7 @@ function App() {
       style: { strokeWidth: 2, stroke: '#64748b' },
     }))
     setEdges(newEdges)
-  }, [data, connectionSource, handleNodeClick])
+  }, [data, connectionSource, handleNodeClick, handleNodeContextMenu])
 
   const addUser = () => {
     if (!userName.trim()) return
@@ -203,6 +222,15 @@ function App() {
     }))
   }
 
+  const getConnectionsForPerson = (personId: string) => {
+    return data.connections
+      .filter(c => c.from === personId || c.to === personId)
+      .map(c => {
+        const connectedPersonId = c.from === personId ? c.to : c.from
+        return data.people.find(p => p.id === connectedPersonId)
+      })
+      .filter((p): p is Person => p !== undefined)
+  }
 
   // Handle node changes (including position updates from dragging)
   const onNodesChange = useCallback(
@@ -377,6 +405,65 @@ function App() {
           </div>
         </>
       )}
+
+      {/* Connections Modal */}
+      {viewingConnectionsFor && (() => {
+        const person = data.people.find(p => p.id === viewingConnectionsFor)
+        if (!person) return null
+
+        const connections = getConnectionsForPerson(viewingConnectionsFor)
+
+        return (
+          <div
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+            onClick={() => setViewingConnectionsFor(null)}
+          >
+            <div
+              className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-gray-800">
+                  {person.name}
+                  {person.isUser && <span className="text-sm text-gray-500 ml-2">(You)</span>}
+                </h2>
+                <button
+                  onClick={() => setViewingConnectionsFor(null)}
+                  className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
+                >
+                  ×
+                </button>
+              </div>
+
+              {/* Connections count */}
+              <p className="text-sm text-gray-600 mb-3">
+                {connections.length === 0
+                  ? 'No connections yet'
+                  : `${connections.length} connection${connections.length === 1 ? '' : 's'}`
+                }
+              </p>
+
+              {/* Connections list */}
+              {connections.length > 0 && (
+                <div className="space-y-2">
+                  {connections.map(conn => (
+                    <div
+                      key={conn.id}
+                      className="px-4 py-2 bg-gray-50 rounded-lg border border-gray-200"
+                    >
+                      <div className="text-gray-800">
+                        {conn.name}
+                        {conn.isUser && <span className="text-sm text-gray-500 ml-2">(You)</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }

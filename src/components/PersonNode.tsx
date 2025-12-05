@@ -5,11 +5,12 @@ export interface PersonNodeData {
   isUser: boolean
   onRemove?: (id: string) => void
   onClick?: (event: React.MouseEvent, id: string) => void
+  onContextMenu?: (event: React.MouseEvent, id: string) => void
   isConnectionSource?: boolean
 }
 
 export function PersonNode({ id, data }: NodeProps) {
-  const { name, isUser, onRemove, onClick, isConnectionSource } = data as unknown as PersonNodeData
+  const { name, isUser, onRemove, onClick, onContextMenu, isConnectionSource } = data as unknown as PersonNodeData
 
   return (
     <div className="relative group">
@@ -38,6 +39,7 @@ export function PersonNode({ id, data }: NodeProps) {
           }
         `}
         onClick={(e) => onClick?.(e, id)}
+        onContextMenu={(e) => onContextMenu?.(e, id)}
       >
         <div className="text-center font-medium">
           {name}
